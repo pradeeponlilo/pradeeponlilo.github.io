@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Task Execution Cycle (Engineer ↔ HOD)</title>
+  <style>
+    :root{
+      --bg:#ffffff;
+      --ink:#0f172a;
+      --muted:#475569;
+
+      --line:#94a3b8;
+      --shadow: 0 8px 24px rgba(2,6,23,.06);
+
+      --border:#e2e8f0;
+
+      /* Color system (soft but clearly visible) */
+      --c-todo-bg:#fff7ed;      /* amber */
+      --c-todo-br:#fdba74;
+
+      --c-progress-bg:#ecfeff;  /* cyan */
+      --c-progress-br:#22d3ee;
+
+      --c-review-bg:#eef2ff;    /* indigo */
+      --c-review-br:#818cf8;
+
+      --c-complete-bg:#ecfdf5;  /* green */
+      --c-complete-br:#34d399;
+
+      --c-decision-bg:#fdf2f8;  /* pink */
+      --c-decision-br:#f472b6;
+
+      --c-note-bg:#f8fafc;
+      --c-note-br:#cbd5e1;
+
+      --accent:#2563eb;
+    }
+
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+    }
+
+    .wrap{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 18px 40px;
+    }
+
+    h1{
+      font-size: 20px;
+      margin: 0 0 6px;
+      letter-spacing: .2px;
+    }
+
+    .sub{
+      margin: 0 0 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .legend{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin: 10px 0 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .pill{
+      border: 1px solid var(--border);
+      background: var(--c-note-bg);
+      padding: 6px 10px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    /* flow layout */
+    .flow{
+      display:flex;
+      flex-direction:column;
+      gap:18px;
+    }
+
+    .row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      gap:18px;
+      flex-wrap:wrap;
+    }
+
+    .node{
+      min-width: 240px;
+      max-width: 360px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 12px 10px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* colored header strip */
+    .node:before{
+      content:"";
+      position:absolute;
+      top:0; left:0; right:0;
+      height: 6px;
+      background: var(--c-note-br);
+    }
+
+    .node .title{
+      font-size: 13px;
+      font-weight: 800;
+      margin: 0 0 6px;
+    }
+
+    .node .meta{
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 8px;
+      line-height: 1.4;
+    }
+
+    .node ul{
+      margin: 0;
+      padding-left: 18px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--ink);
+    }
+
+    .tag{
+      display:inline-block;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 999px;
+      margin-left: 8px;
+      color: var(--muted);
+      background: #fff;
+      vertical-align: middle;
+    }
+
+    .rule{
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 10px;
+      border-top: 1px dashed var(--border);
+      padding-top: 10px;
+      line-height: 1.5;
+    }
+
+    /* node variants */
+    .todo{ background: var(--c-todo-bg); border-color: color-mix(in oklab, var(--c-todo-br) 55%, var(--border)); }
+    .todo:before{ background: var(--c-todo-br); }
+
+    .progress{ background: var(--c-progress-bg); border-color: color-mix(in oklab, var(--c-progress-br) 55%, var(--border)); }
+    .progress:before{ background: var(--c-progress-br); }
+
+    .review{ background: var(--c-review-bg); border-color: color-mix(in oklab, var(--c-review-br) 55%, var(--border)); }
+    .review:before{ background: var(--c-review-br); }
+
+    .complete{ background: var(--c-complete-bg); border-color: color-mix(in oklab, var(--c-complete-br) 55%, var(--border)); }
+    .complete:before{ background: var(--c-complete-br); }
+
+    /* connector */
+    .connector{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      color: var(--muted);
+      font-size: 12px;
+      flex-wrap:wrap;
+      padding-top: 6px;
+    }
+
+    .line{
+      width: 120px;
+      height: 2px;
+      background: var(--line);
+      position: relative;
+      border-radius: 999px;
+      opacity: .9;
+    }
+    .line:after{
+      content:"";
+      position:absolute;
+      right:-2px;
+      top:-5px;
+      width:0;
+      height:0;
+      border-left: 10px solid var(--line);
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+    }
+
+    .vline{
+      width: 2px;
+      height: 22px;
+      background: var(--line);
+      position: relative;
+      margin: 0 auto;
+      border-radius: 999px;
+      opacity: .9;
+    }
+    .vline:after{
+      content:"";
+      position:absolute;
+      left:-5px;
+      bottom:-2px;
+      width:0;
+      height:0;
+      border-top: 10px solid var(--line);
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+    }
+
+    .center{ text-align:center; }
+
+    .decision{
+      min-width: 260px;
+      max-width: 520px;
+      background: var(--c-decision-bg);
+      border: 1px solid color-mix(in oklab, var(--c-decision-br) 55%, var(--border));
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .decision:before{
+      content:"";
+      position:absolute;
+      top:0; left:0; right:0;
+      height: 6px;
+      background: var(--c-decision-br);
+    }
+
+    .decision .title{
+      font-size: 13px;
+      font-weight: 900;
+      margin: 0 0 6px;
+    }
+    .decision .meta{
+      margin:0;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.45;
+    }
+
+    .cols{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:18px;
+      align-items:start;
+      justify-items:center;
+    }
+
+    @media (max-width: 900px){
+      .cols{ grid-template-columns: 1fr; }
+      .line{ width: 80px; }
+    }
+
+    .callout{
+      margin-top: 10px;
+      background: rgba(255,255,255,.65);
+      border: 1px solid color-mix(in oklab, var(--accent) 22%, var(--border));
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    .callout strong{ color: var(--ink); }
+
+    .foot{
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+
+    code{
+      background: rgba(255,255,255,.7);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-size: 11px;
+      color: var(--ink);
+    }
+
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      padding: 2px 6px;
+      border: 1px solid var(--border);
+      border-bottom-width: 2px;
+      border-radius: 8px;
+      background: rgba(255,255,255,.7);
+      color: var(--ink);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <h1>Standard Task Execution Cycle (Engineer ↔ HOD)</h1>
+    <p class="sub">
+      This flow standardizes task ownership, time tracking, review latency visibility, and continuity of work.
+      One task has one owner at a time: Engineer in <code>IN PROGRESS</code>, HOD in <code>AWAITING REVIEW</code>.
+      Keep work communication in ClickUp task comments (public record), and use calls/meetings only when needed—then document a brief summary in the task.
+    </p>
+
+    <div class="legend">
+      <div class="pill">Statuses: TO DO → IN PROGRESS → AWAITING REVIEW → (IN PROGRESS or COMPLETE)</div>
+      <div class="pill">Timer Rule: ON only in IN PROGRESS; OFF in TO DO / AWAITING REVIEW / COMPLETE</div>
+      <div class="pill">Continuity Rule: After 30 minutes, pull next Primary task if available, else Secondary</div>
+      <div class="pill">HOD Target Review Time: respond within 4 working hours</div>
+      <div class="pill">If a call/meeting happens: add a short summary comment after it</div>
+    </div>
+
+    <div class="flow">
+
+      <div class="row">
+        <div class="node todo">
+          <div class="title">Task in TO DO <span class="tag">Owner: HOD</span></div>
+          <div class="meta">Work is prepared and queued. Engineer may have multiple items in TO DO, but should actively work on one at a time.</div>
+          <ul>
+            <li>Task has clear description and Definition of Done</li>
+            <li>Priority and due date (if applicable) set</li>
+          </ul>
+          <div class="rule">
+            Good practice: HOD can assign 3–4 Primary tasks in TO DO for the week; engineer pulls the next one when ready.
+          </div>
+        </div>
+
+        <div class="connector">
+          <div class="line"></div>
+          <div>Engineer pulls task</div>
+        </div>
+
+        <div class="node progress">
+          <div class="title">IN PROGRESS <span class="tag">Owner: Engineer</span></div>
+          <div class="meta">Engineer is actively working. Time logged here contributes to Effective Working Hours when linked to a task.</div>
+          <ul>
+            <li>Start timer when work begins</li>
+            <li>Stop timer when switching away</li>
+            <li>Prefer one active task at a time</li>
+          </ul>
+          <div class="rule">
+            Timer ON only in IN PROGRESS. If you must switch tasks, stop timer first, then start on the next task.
+          </div>
+        </div>
+      </div>
+
+      <div class="center">
+        <div class="vline"></div>
+        <div class="decision">
+          <div class="title">Work completed or blocked?</div>
+          <p class="meta">If the engineer cannot proceed, ownership transfers to the HOD for review/decision.</p>
+        </div>
+        <div class="vline"></div>
+      </div>
+
+      <div class="row">
+        <div class="node review">
+          <div class="title">AWAITING REVIEW <span class="tag">Owner: HOD</span></div>
+          <div class="meta">Engineer has completed the current step or is blocked and requires reviewer input to proceed.</div>
+          <ul>
+            <li>Stop timer</li>
+            <li>Move status to AWAITING REVIEW</li>
+            <li>Add a factual comment (ready / blocked + what is needed)</li>
+          </ul>
+          <div class="rule">
+            Comments must be factual (event log), not opinion. Examples: “Completed, ready for review.” or “Blocked pending approval for option B.”
+          </div>
+        </div>
+      </div>
+
+      <div class="center">
+        <div class="vline"></div>
+        <div class="decision">
+          <div class="title">30-minute continuity window</div>
+          <p class="meta">Engineer does not wait indefinitely. After 30 minutes, the engineer continues work on another task.</p>
+        </div>
+        <div class="vline"></div>
+      </div>
+
+      <div class="cols">
+        <div>
+          <div class="node progress">
+            <div class="title">Is another Primary Task available in TO DO?</div>
+            <div class="meta">If yes, engineer pulls the next Primary task to avoid idle time.</div>
+            <ul>
+              <li>Move next Primary task to IN PROGRESS</li>
+              <li>Start timer on that task</li>
+            </ul>
+            <div class="rule">This keeps output moving while the original task is awaiting review.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="node progress">
+            <div class="title">If NO: switch to Secondary Task</div>
+            <div class="meta">Secondary tasks keep Effective Hours meaningful during dependencies.</div>
+            <ul>
+              <li>Pull Secondary task from backlog</li>
+              <li>Move to IN PROGRESS</li>
+              <li>Start timer</li>
+            </ul>
+            <div class="rule">
+              Secondary tasks must be pre-approved and ready-to-pick (documentation, optimization, test harness, library cleanup, etc.).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="center">
+        <div class="vline"></div>
+        <div class="decision">
+          <div class="title">HOD Review & Decision</div>
+          <p class="meta">HOD reviews tasks in AWAITING REVIEW and converts them into an explicit decision via status change.</p>
+        </div>
+        <div class="vline"></div>
+      </div>
+
+      <div class="row">
+        <div class="node review">
+          <div class="title">HOD Reviews <span class="tag">Target: within 4 working hours</span></div>
+          <div class="meta">Review must result in a decision and clear next steps.</div>
+          <ul>
+            <li>Check output or blocker context</li>
+            <li>Add clear, actionable instruction</li>
+            <li>Change status to COMPLETE or IN PROGRESS</li>
+          </ul>
+
+          <div class="callout">
+            <strong>If a call/meeting is needed:</strong><br/>
+            It is acceptable to do a quick phone call or a short meeting to unblock faster.
+            <br/><br/>
+            <strong>Mandatory rule:</strong> After the call/meeting, add a brief summary in the ClickUp task comments so the public record remains complete.
+            <br/><br/>
+            Example comment template:<br/>
+            <span class="kbd">“10-min call between HOD and Engineer at 15:10. Clarified approach for X. Action agreed: implement Y, then retest. Status set to IN PROGRESS.”</span>
+          </div>
+
+          <div class="rule">
+            Avoid private channels for decisions. Any decision that affects task scope/approach must be captured in the task comments (even if it was discussed verbally).
+          </div>
+        </div>
+
+        <div class="connector">
+          <div class="line"></div>
+          <div>Status decision</div>
+        </div>
+
+        <div class="node complete">
+          <div class="title">Decision: COMPLETE</div>
+          <div class="meta">Task is accepted and closed.</div>
+          <ul>
+            <li>No further action on this task</li>
+            <li>Engineer continues current work or pulls next task</li>
+          </ul>
+          <div class="rule">If a task is COMPLETE, the engineer should not log additional time on it.</div>
+        </div>
+
+        <div class="connector">
+          <div class="line"></div>
+        </div>
+
+        <div class="node progress">
+          <div class="title">Decision: IN PROGRESS (Rework / Next step)</div>
+          <div class="meta">Task returns to engineer with instructions. Engineer resumes work when they pick it up.</div>
+          <ul>
+            <li>Engineer resumes when ready</li>
+            <li>Start timer when work begins</li>
+            <li>Repeat cycle until COMPLETE</li>
+          </ul>
+          <div class="rule">Engineer should not restart timer until they actually resume work on this task.</div>
+        </div>
+      </div>
+
+      <div class="foot">
+        Notes:
+        <ul>
+          <li>Keep work communication primarily inside ClickUp task comments and public views for transparency and record.</li>
+          <li>Calls/meetings are allowed when they speed up resolution; always document a brief factual summary afterward in the task.</li>
+          <li>Status changes represent ownership transfer and are the primary mechanism for accountability.</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
